@@ -1,0 +1,12 @@
+# Core (tested with Python 3.13, torch 2.12)
+torch>=2.4
+torchvision
+transformers>=4.44
+huggingface_hub
+numpy
+pandas
+pyyaml
+pillow
+av            # video decode (GAMa / CityGuessr)
+tqdm
+pytest
