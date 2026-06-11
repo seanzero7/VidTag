@@ -123,6 +123,21 @@ re-run it after any interruption):
 bash scripts/download_datasets.sh /data/PaperRepro
 ```
 
+**Alternative: seed from an existing drive.** If you already have a
+`PaperRepro/` tree (e.g. on an external drive from a previous machine), you
+can skip the downloads by copying the raw archives + weights instead —
+nothing on such a drive is special; it holds exactly what the script
+downloads:
+
+```bash
+# adjust the mount point; on Linux an NTFS drive mounts via the kernel ntfs3 driver
+rsync -ah --progress /mnt/8TBExternal/PaperRepro/datasets/ /data/PaperRepro/datasets/
+rsync -ah --progress /mnt/8TBExternal/PaperRepro/weights/  /data/PaperRepro/weights/
+```
+
+Either way, continue with the preparation commands below (they skip
+already-extracted files, so partial trees are fine).
+
 | Dataset | Source | Auth |
 |---|---|---|
 | MSLS (~57GB) | HF mirror `deansmile123/msls` (verified against official MD5s) | none |
