@@ -322,6 +322,25 @@ docker run --gpus all --ipc=host --shm-size=16g \
     vidtag bash scripts/train_msls_full.sh /data/PaperRepro
 ```
 
+**DGX Spark / Grace (aarch64):** build with the NGC base instead — the
+default PyTorch Docker images are x86-only:
+
+```bash
+docker build --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:25.04-py3 -t vidtag .
+```
+
+**No external storage required.** All paths are config values; running
+`bash scripts/download_datasets.sh /data/PaperRepro` on the box itself
+rebuilds the full data tree from public sources (plus the manual BDD100k
+videos download). Disk budget if everything lives on internal NVMe, with
+archives deleted after extraction: MSLS ~70GB (extracted + features),
+CityGuessr ~430GB extracted, GAMa lists ~1GB (the 90GB aerial archive is
+NOT needed by this pipeline — only its `list/` directory), BDD100k videos
+~1.8TB (the dominant item; defer it until the GAMa phase). MSLS-only ≈
+**70GB**; everything except BDD videos ≈ **510GB**; absolutely everything ≈
+**2.4TB** — plan accordingly on a 4TB Spark (keep zip + extracted
+simultaneously only if you have headroom).
+
 Container notes:
 - `--ipc=host --shm-size=16g` is required — DataLoader workers use shared
   memory (the default 64MB shm will crash `num_workers: 12`).
