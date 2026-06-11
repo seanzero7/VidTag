@@ -227,7 +227,23 @@ trains in `data.mode: frames` (decodes .mov via PyAV). Pre-build their eval
 galleries per the comments in those configs — auto-building one bbox over
 all of BDD100k is intractable.
 
-### Using a trained model on a new video
+One-shot wrapper for the whole MSLS flow (precompute → both phases → eval,
+resumable): `bash scripts/train_msls_full.sh /data/PaperRepro`.
+
+### Inference on a new video (script)
+
+```bash
+PYTHONPATH=src python scripts/predict.py \
+    --ckpt runs/msls_full/phase2_latest.pt \
+    --gallery runs/msls_full/gallery_train_grid.npy \
+    --video clip.mp4 --sample-fps 1 \      # or --frames-dir /path/to/frames
+    --out trajectory.csv
+```
+
+Rebuilds the model from the checkpoint's embedded config, runs the two-stage
+retrieval, writes `frame,lat,lon,initial_lat,initial_lon` per row.
+
+### Using a trained model in Python
 
 ```python
 import torch
