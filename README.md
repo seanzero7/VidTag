@@ -10,6 +10,33 @@ release code; this implementation is built from the paper + supplementary.
   (30+ entries), what we chose, and why. Read this before tuning anything.
 - [docs/NIGHT_REPORT.md](docs/NIGHT_REPORT.md) — build/validation narrative.
 
+## Status & TODO
+
+**Done** (validated on Apple Silicon, 2026-06-11):
+
+- [x] Full pipeline implemented, 56 unit tests, 3-agent adversarial review
+- [x] End-to-end proofs on real data (see table below) — incl. GeoRefiner
+      gains reproducing in direction at scale
+- [x] All data acquired & verified on the transport drive (`PaperRepro/`):
+      MSLS (MD5-checked), CityGuessr68k, GAMa lists + BDD GPS info, GeoCLIP
+      weights, **and the CLIP/DINOv2 HF caches (offline-load verified)** —
+      the drive is fully self-contained; no internet needed for weights
+- [x] Docker image defined (x86 + DGX Spark/aarch64 bases)
+
+**TODO on the DGX Spark** (in order; commands in the recipe below):
+
+- [ ] Clone this repo; `docker build --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:25.04-py3 -t vidtag .`
+- [ ] Copy the drive: `rsync -ah --progress /mnt/<drive>/PaperRepro/ /data/PaperRepro/`
+      (one tree: datasets + weights + hf_cache)
+- [ ] Prep MSLS (extract remaining cities + build index — Step 1 commands)
+- [ ] `pytest tests/ -q` + synthetic smoke in the container
+- [ ] MSLS: precompute → Phase I (600 ep) → Phase II (100 ep) → eval
+      → compare against Table 1 targets
+- [ ] CityGuessr68k: extract archives → precompute → train → city-level eval
+- [ ] (deferred) GAMa — requires the BDD100k videos (Berkeley account)
+- [ ] If metrics fall short: work GUESSES.md top-down (#9 GeoRefiner width
+      first, then #8 CE direction)
+
 ## Architecture at a glance
 
 ```
@@ -123,16 +150,14 @@ re-run it after any interruption):
 bash scripts/download_datasets.sh /data/PaperRepro
 ```
 
-**Alternative: seed from an existing drive.** If you already have a
-`PaperRepro/` tree (e.g. on an external drive from a previous machine), you
-can skip the downloads by copying the raw archives + weights instead —
-nothing on such a drive is special; it holds exactly what the script
-downloads:
+**Alternative: seed from the prepared drive.** A `PaperRepro/` tree on a
+drive (as prepared for this project) holds everything the script downloads
+*plus* the CLIP/DINOv2 HF caches (offline-load verified) — copy the whole
+tree and no downloads are needed at all:
 
 ```bash
 # adjust the mount point; on Linux an NTFS drive mounts via the kernel ntfs3 driver
-rsync -ah --progress /mnt/8TBExternal/PaperRepro/datasets/ /data/PaperRepro/datasets/
-rsync -ah --progress /mnt/8TBExternal/PaperRepro/weights/  /data/PaperRepro/weights/
+rsync -ah --progress /mnt/8TBExternal/PaperRepro/ /data/PaperRepro/
 ```
 
 Either way, continue with the preparation commands below (they skip
