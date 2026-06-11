@@ -362,6 +362,20 @@ docker run --gpus all --ipc=host --shm-size=16g \
     vidtag bash scripts/train_msls_full.sh /data/PaperRepro
 ```
 
+**Running data directly off the external drive:** no config edits needed —
+mount the drive's tree AS `/data/PaperRepro`:
+
+```bash
+docker run --gpus all --ipc=host --shm-size=16g -it \
+    -v /media/honeywell/8TBExternal/PaperRepro:/data/PaperRepro \
+    -v $PWD/runs:/workspace/runs \
+    vidtag
+```
+
+(Check the host mount driver first: `mount | grep 8TB` — if it says `fuseblk`
+the drive auto-mounted via slow FUSE ntfs-3g; remount with the kernel driver:
+`sudo umount /media/honeywell/8TBExternal && sudo mount -t ntfs3 /dev/sdX1 /media/honeywell/8TBExternal`.)
+
 **DGX Spark / Grace (aarch64):** build with the NGC base instead — the
 default PyTorch Docker images are x86-only:
 
