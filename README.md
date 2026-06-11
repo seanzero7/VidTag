@@ -19,7 +19,7 @@ release code; this implementation is built from the paper + supplementary.
 | MSLS Phase II (GeoRefiner, 15 epochs) | loss ~1.9 → 1.24 |
 | Full eval on real MSLS val (gallery 59k pts @0.1km, two-stage) | initial median 2.2 km, 29.9% @1km, 99.2% @25km |
 | GAMa pipeline (real release lists: 45,029/3,103 videos; real BDD GPS; video decode) | PASS |
-| CityGuessr68k pipeline (real meta, 166 geocoded city centers) | PASS |
+| CityGuessr68k pipeline (real release frame folders + meta + 166 geocoded centers, model forward) | PASS |
 
 (For scale: the paper's full-training MSLS numbers are 41.0% @1km, median
 1.35 km — reached with 22 cities × 600 epochs on an RTX A6000.)
@@ -106,12 +106,12 @@ cp $ROOT/datasets/gama/gama_meta/list/val_day_vid.list $ROOT/datasets/gama/split
 # CityGuessr68k: meta + videos (archives are zstd squashfs; loop-mount also works)
 unsquashfs -d $ROOT/datasets/cityguessr68k/meta $ROOT/datasets/cityguessr68k/CityGuessr68k-meta_files.sq
 cp data_static/cityguessr_city_centers.csv $ROOT/datasets/cityguessr68k/meta/city_centers.csv
-for f in ac dk lo pz; do
+for f in ac dk lo pz; do   # verified layout: <split>/<City>/<video_id>/<n>.jpg frame folders
   unsquashfs -f -d $ROOT/datasets/cityguessr68k/videos \
       $ROOT/datasets/cityguessr68k/CityGuessr68k-$f.sq
 done
-# loader expects flat files videos/<City>_<idx>.<ext>; if the archives hold
-# per-video folders (of frames), flatten or adapt data/cityguessr.py:_find_video
+# the loader reads those frame folders directly (no video decode needed), and
+# the precompute fast path works for CityGuessr too
 ```
 
 ## Training (paper-scale)
@@ -138,11 +138,12 @@ Every hyperparameter lives in the YAML; any value can be overridden:
 `--override train.lr=1e-4 --override train.batch_size=256`.
 
 GAMa and CityGuessr68k train with the same phase1/phase2/eval commands using
-`configs/gama_*.yaml` and `configs/cityguessr_*.yaml`, but in
-`data.mode: frames` — the precompute fast path currently supports MSLS only.
-(Paper: 100 epochs, LR decay 0.95 for both; everything else identical —
-suppl. A.) Their eval galleries should be pre-built (see comments in those
-configs); auto-building one bbox over all of BDD100k is intractable.
+`configs/gama_*.yaml` and `configs/cityguessr_*.yaml`. The precompute fast
+path supports MSLS and CityGuessr (frame folders); GAMa trains in
+`data.mode: frames` (video decode). (Paper: 100 epochs, LR decay 0.95 for
+both; everything else identical — suppl. A.) Their eval galleries should be
+pre-built (see comments in those configs); auto-building one bbox over all
+of BDD100k is intractable.
 
 ## Known deviations / open items
 
