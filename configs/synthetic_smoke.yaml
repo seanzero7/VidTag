@@ -1,0 +1,58 @@
+# Synthetic end-to-end smoke test — no real data needed, any device.
+model:
+  sigma: [1, 8, 256]            # 2^0, 2^3, 2^8 (suppl. B.3 Table 9)
+  tempgeo_layers: 2             # suppl. A
+  tempgeo_heads: 8              # GUESSES #4
+  tempgeo_dropout: 0.1
+  refiner_encoder_layers: 1     # suppl. A
+  refiner_decoder_layers: 2     # suppl. A
+  refiner_heads: 8              # GUESSES #9
+  refiner_ff: 2048
+  refiner_dropout: 0.1
+  max_len: 512
+  embed_dim: 512
+  # GeoCLIP init matters even for synthetic data: a random-init RFF location
+  # encoder is not geographically smooth, so gallery retrieval cannot work
+  # (verified empirically: median 8,805 km random-init vs 2.5 km with init).
+  geoclip_init: true
+  geoclip_location_weights: /Volumes/8TBExternal/PaperRepro/weights/geoclip/location_encoder_weights.pth
+  geoclip_logit_scale_weights: /Volumes/8TBExternal/PaperRepro/weights/geoclip/logit_scale_weights.pth
+
+data:
+  kind: synthetic
+  mode: features
+  num_videos: 64
+  frames_per_seq: 16
+  num_workers: 0
+
+train:
+  batch_size: 8
+  epochs: 3
+  lr: 3.0e-4
+  lr_decay: 0.99
+  warmup_steps: 20
+  symmetric_ce: true
+  grad_clip: null
+
+noise:
+  collapse_prob: 0.1            # suppl. A
+  jitter_range: [0.001, 0.02]   # suppl. A
+  shift_range: [-0.2, 0.2]      # suppl. A
+
+loss:
+  alpha: 10.0                   # suppl. B.1
+  beta: 1.0
+
+eval:
+  batch_size: 4
+  resolution_km: 0.5
+  gallery_chunk: 8192
+  gallery_path: runs/synthetic_smoke/gallery.npy
+  padding_deg: 0.02
+
+run:
+  dir: runs/synthetic_smoke
+  device: auto
+  seed: 0
+  log_every: 10
+  ckpt_every_epochs: 1

@@ -58,7 +58,11 @@ class SyntheticSequences(Dataset):
 
         if mode == "features":
             phi = _fourier_features(coords, _FREQS)  # (V, T, 4F)
-            proj = rng.normal(0.0, phi.shape[-1] ** -0.5, (phi.shape[-1], feature_dim))
+            # The feature->coordinate mapping must be SHARED across dataset
+            # instances (train/val) or generalization is impossible by
+            # construction; only trajectories vary with `seed`.
+            proj_rng = np.random.default_rng(12345)
+            proj = proj_rng.normal(0.0, phi.shape[-1] ** -0.5, (phi.shape[-1], feature_dim))
             feats = phi @ proj + FEATURE_NOISE_STD * rng.normal(size=(V, T, feature_dim))
             feats /= np.linalg.norm(feats, axis=-1, keepdims=True)
             self.fused = torch.from_numpy(feats.astype(np.float32))

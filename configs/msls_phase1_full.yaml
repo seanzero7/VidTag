@@ -1,0 +1,65 @@
+# MSLS Phase I — FULL paper configuration (suppl. A). Target: Linux + Blackwell.
+# CHANGE ON LINUX: update the four /Volumes/... paths to your mount point,
+# precompute features first (scripts/precompute_features.py) or set
+# data.mode: frames to train straight from images (much slower; paper Table 14).
+model:
+  sigma: [1, 8, 256]            # 2^0, 2^3, 2^8 — suppl. B.3
+  tempgeo_layers: 2
+  tempgeo_heads: 8
+  tempgeo_dropout: 0.1
+  refiner_encoder_layers: 1
+  refiner_decoder_layers: 2
+  refiner_heads: 8
+  refiner_ff: 2048
+  refiner_dropout: 0.1
+  max_len: 512
+  embed_dim: 512
+  geoclip_init: true
+  geoclip_location_weights: /data/PaperRepro/weights/geoclip/location_encoder_weights.pth
+  geoclip_logit_scale_weights: /data/PaperRepro/weights/geoclip/logit_scale_weights.pth
+
+data:
+  kind: msls
+  mode: features                # precomputed CLIP+DINOv2 (suppl. I fast path)
+  msls_root: /data/PaperRepro/datasets/msls/extracted
+  train_index: /data/PaperRepro/datasets/msls/index/train.csv
+  val_index: /data/PaperRepro/datasets/msls/index/val.csv
+  train_cities: null            # all 22 train cities
+  val_cities: null              # cph + sf
+  train_features_dir: /data/PaperRepro/datasets/msls/features/train
+  val_features_dir: /data/PaperRepro/datasets/msls/features/val
+  frames_per_seq: 16            # suppl. A & B.4
+  image_size: 224
+  num_workers: 12
+
+train:
+  batch_size: 128               # suppl. A (sequences per batch)
+  epochs: 600                   # suppl. A (Phase I on MSLS)
+  lr: 5.0e-5
+  lr_decay: 0.99                # per epoch
+  warmup_steps: 1000
+  symmetric_ce: true
+  grad_clip: null
+
+noise:
+  collapse_prob: 0.1
+  jitter_range: [0.001, 0.02]
+  shift_range: [-0.2, 0.2]
+
+loss:
+  alpha: 10.0
+  beta: 1.0
+
+eval:
+  batch_size: 8
+  resolution_km: 0.1            # §5.5: 0.1 km gallery for MSLS
+  gallery_chunk: 65536
+  gallery_path: runs/msls_full/gallery_val_cities.npy
+  padding_deg: 0.02
+
+run:
+  dir: runs/msls_full
+  device: auto                  # cuda on the Blackwell box
+  seed: 0
+  log_every: 50
+  ckpt_every_epochs: 10

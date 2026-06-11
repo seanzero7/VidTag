@@ -38,6 +38,6 @@ def frames_to_tensor(images: list[Image.Image], size: int = 224) -> torch.Tensor
                 mode="bilinear",
                 align_corners=False,
                 antialias=True,
-            )[0]
+            )[0].clamp_(0.0, 1.0)  # fp rounding can overshoot by ~1e-7
         out.append(t)
     return torch.stack(out)

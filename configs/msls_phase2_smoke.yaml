@@ -1,0 +1,61 @@
+# MSLS Phase II smoke (GeoRefiner) on Mac/MPS — follows msls_phase1_smoke.
+model:
+  sigma: [1, 8, 256]
+  tempgeo_layers: 2
+  tempgeo_heads: 8
+  tempgeo_dropout: 0.1
+  refiner_encoder_layers: 1
+  refiner_decoder_layers: 2
+  refiner_heads: 8
+  refiner_ff: 2048
+  refiner_dropout: 0.1
+  max_len: 512
+  embed_dim: 512
+  geoclip_init: false           # weights come from the phase1 checkpoint
+
+data:
+  kind: msls
+  mode: features
+  msls_root: /Volumes/8TBExternal/PaperRepro/datasets/msls/extracted
+  train_index: /Volumes/8TBExternal/PaperRepro/datasets/msls/index/train.csv
+  val_index: /Volumes/8TBExternal/PaperRepro/datasets/msls/index/val_smoke.csv
+  train_cities: [zurich, amsterdam, trondheim]
+  val_cities: null
+  train_features_dir: /Volumes/8TBExternal/PaperRepro/datasets/msls/features/train_smoke
+  val_features_dir: /Volumes/8TBExternal/PaperRepro/datasets/msls/features/val_smoke
+  frames_per_seq: 16
+  image_size: 224
+  num_workers: 4
+
+train:
+  phase1_ckpt: runs/msls_smoke/phase1_latest.pt
+  batch_size: 32
+  epochs: 15
+  lr: 1.0e-4                    # paper suppl. A (Phase II)
+  lr_decay: 0.95                # paper suppl. A (Phase II)
+  warmup_steps: 100             # paper: 1000; scaled to smoke run length
+  symmetric_ce: true
+  grad_clip: null
+
+noise:
+  collapse_prob: 0.1
+  jitter_range: [0.001, 0.02]
+  shift_range: [-0.2, 0.2]
+
+loss:
+  alpha: 10.0
+  beta: 1.0
+
+eval:
+  batch_size: 2
+  resolution_km: 0.1
+  gallery_chunk: 8192
+  gallery_path: runs/msls_smoke/gallery_val_cities.npy
+  padding_deg: 0.02
+
+run:
+  dir: runs/msls_smoke
+  device: auto
+  seed: 0
+  log_every: 10
+  ckpt_every_epochs: 5
