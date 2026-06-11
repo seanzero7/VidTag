@@ -95,11 +95,14 @@ to revisit on the Blackwell box if results fall short of the paper's.
 
 ## Data
 
-24. **MSLS train/val split "following [21]"** → CityGuessr's procedure is not
-    fully published; we use MSLS's official train_val city partition, take
-    all sequences (query+database), and hold out the official val cities
-    (cph, sf) as our val split. *Why:* closest defensible reading; suppl. F
-    trains baselines on the same split so internal comparisons stay fair.
+24. **MSLS train/val split "following [21]"** → WITHIN-city split: 10% of
+    each city's sequences (deterministic hash) go to val, across all 24
+    train_val cities. *Why:* the paper's uniform-grid gallery is built from
+    train coordinates only (suppl. D.1) yet val accuracy reaches 97.9% @25km
+    (Table 1) — impossible under a held-out-city split (no gallery coverage
+    in val cities). A within-city sequence split is the only reading
+    consistent with both, and matches CityGuessr's per-city design. The 10%
+    fraction is our choice (unstated).
 25. **Sequence definition in MSLS** → group images by the dataset's
     `sequence_key`, ordered by capture time. Sequences <16 frames are
     dropped from training (paper: train split has ≥16 frames per video).

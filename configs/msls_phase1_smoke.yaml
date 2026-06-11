@@ -21,11 +21,11 @@ data:
   mode: features
   msls_root: /Volumes/8TBExternal/PaperRepro/datasets/msls/extracted
   train_index: /Volumes/8TBExternal/PaperRepro/datasets/msls/index/train.csv
-  val_index: /Volumes/8TBExternal/PaperRepro/datasets/msls/index/val_smoke.csv
+  val_index: /Volumes/8TBExternal/PaperRepro/datasets/msls/index/val.csv
   train_cities: [zurich, amsterdam, trondheim]
-  val_cities: null
+  val_cities: [zurich, amsterdam, trondheim]
   train_features_dir: /Volumes/8TBExternal/PaperRepro/datasets/msls/features/train_smoke
-  val_features_dir: /Volumes/8TBExternal/PaperRepro/datasets/msls/features/val_smoke
+  val_features_dir: /Volumes/8TBExternal/PaperRepro/datasets/msls/features/train_smoke
   frames_per_seq: 16
   image_size: 224
   num_workers: 4

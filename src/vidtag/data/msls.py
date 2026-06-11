@@ -59,20 +59,39 @@ def _read_city_side(root: Path, city: str, side: str) -> pd.DataFrame | None:
     return df[["city", "side", "sequence_key", "frame_number", "key", "lat", "lon"]]
 
 
-def build_index(msls_root: str | os.PathLike, split: str = "train", min_len: int | None = None) -> pd.DataFrame:
-    """Scan extracted MSLS cities and build the per-frame index for a split."""
+def build_index(
+    msls_root: str | os.PathLike,
+    split: str = "train",
+    min_len: int | None = None,
+    val_frac: float = 0.1,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Scan extracted MSLS cities and build the per-frame index for a split.
+
+    Split is WITHIN each city (val_frac of sequences per city go to val,
+    deterministic by hash). The paper's uniform-grid gallery is built from
+    train coordinates yet scores 97.9% @25km on val — only possible when
+    every val sequence's city is covered by train data, i.e. a within-city
+    split (GUESSES.md #24).
+    """
     root = Path(msls_root)
-    cities = TRAIN_CITIES if split == "train" else VAL_CITIES
     parts = []
-    for city in cities:
+    for city in TRAIN_CITIES + VAL_CITIES:
         for side in ("query", "database"):
             df = _read_city_side(root, city, side)
             if df is not None:
                 parts.append(df)
     if not parts:
-        raise FileNotFoundError(f"no extracted MSLS cities found under {root}/train_val for split={split}")
+        raise FileNotFoundError(f"no extracted MSLS cities found under {root}/train_val")
     out = pd.concat(parts, ignore_index=True)
     out = out.sort_values(["city", "side", "sequence_key", "frame_number"]).reset_index(drop=True)
+
+    # Deterministic per-sequence split: stable hash of the sequence identity.
+    seq_id = out.city + "_" + out.side + "_" + out.sequence_key
+    bucket = pd.util.hash_array(seq_id.to_numpy()) % 1_000_003 / 1_000_003
+    in_val = bucket < val_frac
+    out = out[in_val if split == "val" else ~in_val].reset_index(drop=True)
+
     if min_len:
         sizes = out.groupby(["city", "side", "sequence_key"])["key"].transform("size")
         out = out[sizes >= min_len].reset_index(drop=True)
@@ -129,6 +148,15 @@ class MSLSequences(Dataset):
     def seq_id(self, idx: int) -> str:
         g = self.groups[idx]
         return f"{g.city.iloc[0]}_{g.side.iloc[0]}_{g.sequence_key.iloc[0]}"
+
+    # --- per-frame access for feature precompute (train/precompute.py) ---
+    def sequence_length(self, idx: int) -> int:
+        return min(len(self.groups[idx]), self.max_len)
+
+    def load_frame(self, idx: int, frame_idx: int) -> torch.Tensor:
+        g = self.groups[idx]
+        img = load_image(self.video_dir(g) / f"{g.key.iloc[frame_idx]}.jpg")
+        return frames_to_tensor([img], self.image_size)[0]
 
     def __getitem__(self, idx: int):
         g = self.groups[idx]
