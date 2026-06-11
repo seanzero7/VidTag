@@ -45,8 +45,10 @@ video frames ────┤                                    ├─ concat �
 | MSLS Phase I (3-city subset, 30 epochs, cached features) | loss 6.07 → 3.14 |
 | MSLS Phase II (GeoRefiner, 15 epochs) | loss ~1.9 → 1.24 |
 | Full eval on real MSLS val (gallery 59k pts @0.1km, two-stage) | initial median 2.2 km, 99.2% @25km |
-| GAMa pipeline (real release lists: 45,029/3,103 videos; real BDD GPS; video decode) | PASS |
-| CityGuessr68k pipeline (real release frame folders + meta + 166 geocoded centers) | PASS |
+| GAMa pipeline (real release lists: 45,029/3,103 videos; real BDD GPS; full trainer path) | PASS |
+| CityGuessr68k real-frame training (124 release videos, 30 epochs) | loss 5.26 → 4.44 |
+| 6-city / 300+60-epoch run: **GeoRefiner improves every metric** (median 3.47→2.76 km, @25km 83.0→91.5) | direction matches paper |
+| Paper-scale probes: batch 128×16 (0.18s/step, 1.2GB MPS); full 24-city gallery = 2.02M pts (4.1GB) | PASS |
 
 (For scale: the paper's full-training MSLS numbers are 41.0% @1km, median
 1.35 km — reached with 22 cities × 600 epochs on an RTX A6000. The smoke

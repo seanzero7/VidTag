@@ -39,6 +39,41 @@ not convergence.
 3. The paper's GeoRefiner gains appear only at full scale; at smoke scale it
    slightly trails initial retrieval (expected; machinery verified).
 
+## Scale-up validation (second pass, 03:30–08:00)
+
+Pushed beyond "it runs" toward "it will reproduce":
+
+- **Full-index audit (all 24 cities):** 1,245,504 train frames / 16,588
+  sequences, zero NaN/out-of-range coords, frame numbers strictly monotonic,
+  every train sequence ≥16 frames. Sequence lengths 16–1093 (median 47).
+- **Paper-scale gallery measured:** 0.1 km grid over all train coords =
+  **2,020,621 points ≈ 4.1 GB fp32 embeddings** — comfortably fits Blackwell
+  memory; retrieval uses the chunked argmax. Building + embedding it is
+  minutes, not hours.
+- **Paper batch geometry on MPS:** batch 128×16 Phase-I step = **0.18 s,
+  1.2 GB** allocated (2048×2048 contrastive matrix). Extrapolation: full
+  MSLS Phase I (600 epochs × 129 steps) ≈ 3.9 h *on this Mac* in cached-
+  feature mode; the Blackwell will be far faster — consistent with the
+  paper's 2.75 h precomputed-feature figure on an A6000.
+- **Resume equivalence:** straight 5-epoch run vs 3+resume+2 → identical
+  per-epoch losses pre-resume, final weights within 2.4e-3 (dataloader
+  shuffle RNG is not checkpointed — documented, standard).
+- **GAMa through the real trainer** (decode→GPS-interpolate→loss→ckpt): PASS.
+- **CityGuessr real-frame training:** 124 genuine release videos, Phase-I
+  loss 5.26 → 4.44 over 30 epochs (`runs/cityguessr_mini`).
+- **6-city long MSLS run** (300-epoch Phase I → 60-epoch Phase II → eval,
+  `runs/msls_long`) — **the paper's central claim reproduces in direction**:
+
+  | stage | @0.5km | @1km | @5km | @25km | median |
+  |---|---|---|---|---|---|
+  | initial retrieval | 10.5 | 22.3 | 64.0 | 83.0 | 3.47 km |
+  | after GeoRefiner | **14.9** | **26.5** | **69.0** | **91.5** | **2.76 km** |
+
+  GeoRefiner *hurt* at 15 Phase-II epochs (first smoke) and *helps on every
+  metric* at 60 — the refinement gains the paper reports emerge with
+  training scale, as designed. Phase-I loss reached 2.25 (vs 3.09 at 30
+  epochs); Phase-II reached 0.87 (vs 1.24).
+
 ## What's left for the desktop (Linux/Blackwell)
 
 1. `bash scripts/download_datasets.sh /data/PaperRepro` — or carry the
