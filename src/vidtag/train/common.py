@@ -85,47 +85,6 @@ def build_dataset(cfg: Config, split: str):
             features_dir=cfg.get(f"data.{split}_features_dir"),
         )
         return ds, collate_padded
-    if kind == "unified":
-        # Suppl. H training mix. Validation of the unified model happens
-        # per-dataset (paper Tables 12-13): run vidtag.eval with each
-        # dataset's own config against the unified checkpoint.
-        from ..data.cityguessr import CityGuessrSequences
-        from ..data.msls import MSLSequences, collate_padded
-        from ..data.unified import UnifiedSequences
-
-        if split != "train":
-            raise ValueError(
-                "unified is a TRAINING mix; evaluate per-dataset configs "
-                "against the unified checkpoint (suppl. H)"
-            )
-        import pandas as pd
-
-        sources: dict = {}
-        m = cfg.data.msls
-        df = pd.read_csv(m.train_index)
-        sources["msls"] = MSLSequences(
-            m.msls_root, df, frames_per_seq=cfg.data.frames_per_seq,
-            train=True, mode="features", features_dir=m.features_dir,
-        )
-        if cfg.get("data.cityguessr"):
-            c = cfg.data.cityguessr
-            sources["cityguessr"] = CityGuessrSequences(
-                c.root, split="train", frames_per_seq=cfg.data.frames_per_seq,
-                train=True, mode="features", features_dir=c.features_dir,
-            )
-        if cfg.get("data.gama"):
-            from ..data.gama import GamaSequences
-
-            g = cfg.data.gama
-            sources["gama"] = GamaSequences(
-                g.root, split="train", frames_per_seq=cfg.data.frames_per_seq,
-                train=True, mode="features", features_dir=g.features_dir,
-            )
-        ds = UnifiedSequences(
-            sources, seed=cfg.get("run.seed", 0),
-            per_city_cap=cfg.get("data.per_city_cap", 80),
-        )
-        return ds, collate_padded
     raise ValueError(f"unknown data.kind: {kind}")
 
 

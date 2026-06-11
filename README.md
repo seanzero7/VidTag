@@ -284,7 +284,6 @@ are projections for a Blackwell-class GPU from the paper's A6000 figures
 | GAMa Phase I+II — 100+100 epochs, decay 0.95 (needs BDD videos; frames mode) | same commands with `configs/gama_phase{1,2}_full.yaml` | 1–2 days (video decode dominates) | **35.4 / 53.1 / 77.8 / 94.4, median 0.88** (0.5 km gallery) |
 | CityGuessr precompute + Phase I+II — 100+100 epochs, decay 0.95 | `precompute --config configs/cityguessr_phase1_full.yaml ...` then phase1/phase2 | 4–8 h precompute, then ~2 h | — |
 | CityGuessr city-level eval | `python -m vidtag.eval --config configs/cityguessr_phase2_full.yaml --ckpt ... --override eval.gallery_source=city_centers` | minutes | **94.9 / 95.5 / 96.8 / 98.5 City/State/Country/Continent** |
-| *(optional)* Unified model — all 3 datasets, 200 epochs, decay 0.97 (suppl. H) | `python -m vidtag.train.phase1 --config configs/unified_phase1_full.yaml`, then per-dataset eval against its checkpoint | ~1 day | Table 12/13 (e.g. MSLS 35.4 @1km) |
 
 Notes that matter for hitting the numbers:
 

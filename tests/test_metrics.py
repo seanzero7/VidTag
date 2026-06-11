@@ -189,3 +189,25 @@ class TestEvaluateSequences:
             video_accuracy([seq, seq], [seq])
         with pytest.raises(ValueError):
             mean_range_difference_km([seq], [seq, seq])
+
+
+def test_hierarchy_accuracy_hand_computed():
+    import pandas as pd
+
+    from vidtag.metrics import hierarchy_accuracy
+
+    labels = pd.DataFrame(
+        {
+            "City": ["Durban", "Johannesburg", "Seoul"],
+            "State": ["KZN", "Gauteng", "Seoul"],
+            "Country": ["South_Africa", "South_Africa", "South_Korea"],
+            "Continent": ["Africa", "Africa", "Asia"],
+        }
+    )
+    pred = ["Durban", "Johannesburg", "Seoul", "Durban"]
+    gt = ["Durban", "Durban", "Seoul", "Seoul"]
+    out = hierarchy_accuracy(pred, gt, labels)
+    assert out["city_acc"] == 50.0      # 2/4 exact
+    assert out["state_acc"] == 50.0     # same 2
+    assert out["country_acc"] == 75.0   # + Joburg/Durban share a country
+    assert out["continent_acc"] == 75.0

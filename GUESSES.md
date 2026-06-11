@@ -146,12 +146,6 @@ to revisit on the Blackwell box if results fall short of the paper's.
     is adapted "by assigning the city center GPS coordinates" but doesn't
     state the gallery or the frame→video aggregation; nearest-center +
     majority vote is the natural retrieval reading.
-32. **Unified-mix city matching (suppl. H rule 2a)** → MSLS city slugs are
-    matched to CityGuessr names case-insensitively with explicit mappings
-    for sf→San_Francisco, cph→Copenhagen, saopaulo→Sao_Paulo. *Why:* the
-    paper says "remove training data from cities which are also present in
-    MSLS" without naming the matching procedure. GAMa subset size = MSLS
-    sequence count ("corpus size is roughly equivalent").
 
 ## Scope notes for the Mac (MPS) phase
 
