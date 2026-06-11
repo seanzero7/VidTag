@@ -28,7 +28,9 @@ class WarmupStepLR:
     def _factor(self) -> float:
         warmup = 1.0
         if self.warmup_steps > 0:
-            warmup = min(self.step_count / self.warmup_steps, 1.0)
+            # step_count+1: the k-th optimizer step runs at k/W of base LR
+            # (plain step_count would make the very first step run at LR=0).
+            warmup = min((self.step_count + 1) / self.warmup_steps, 1.0)
         return warmup * self.gamma**self.epoch_count
 
     def _apply(self) -> None:

@@ -1,0 +1,68 @@
+# CityGuessr68k Phase I — FULL paper configuration (suppl. A: 100 epochs,
+# lr 5e-5, StepLR decay 0.95, batch 128, 16 of ~100 frames/video).
+# Layout under data.cityguessr_root (src/vidtag/data/cityguessr.py):
+#   meta/labels_list.csv, meta/train_labels*.txt, meta/val_labels*.txt
+#       (unsquashfs CityGuessr68k-meta_files.sq)
+#   meta/city_centers.csv   (cp data_static/cityguessr_city_centers.csv)
+#   videos/<City>_<idx>.<ext>   (extracted from CityGuessr68k-{ac,dk,lo,pz}.sq;
+#                                flatten if the archives hold per-video folders)
+# GT per frame = city-center coordinate (§5.3; GUESSES.md #27).
+# NOTE data.mode is "frames": precompute fast path supports MSLS only.
+model:
+  sigma: [1, 8, 256]
+  tempgeo_layers: 2
+  tempgeo_heads: 8
+  tempgeo_ff: 2400              # pinned by paper Table 8 param budget (GUESSES #4)
+  tempgeo_dropout: 0.1
+  refiner_encoder_layers: 1
+  refiner_decoder_layers: 2
+  refiner_heads: 8
+  refiner_ff: 2048
+  refiner_dropout: 0.1
+  max_len: 512
+  embed_dim: 512
+  geoclip_init: true
+  geoclip_location_weights: /data/PaperRepro/weights/geoclip/location_encoder_weights.pth
+  geoclip_logit_scale_weights: /data/PaperRepro/weights/geoclip/logit_scale_weights.pth
+
+data:
+  kind: cityguessr
+  mode: frames
+  cityguessr_root: /data/PaperRepro/datasets/cityguessr68k
+  frames_per_seq: 16
+  num_workers: 12
+
+train:
+  batch_size: 128
+  epochs: 100                   # suppl. A (GAMa / CityGuessr68k)
+  lr: 5.0e-5
+  lr_decay: 0.95
+  warmup_steps: 1000
+  symmetric_ce: true
+  grad_clip: null
+
+noise:
+  collapse_prob: 0.1
+  jitter_range: [0.001, 0.02]
+  shift_range: [-0.2, 0.2]
+
+loss:
+  alpha: 10.0
+  beta: 1.0
+
+eval:
+  batch_size: 8
+  # City-level task (§5.3): the natural gallery is the 166 city centers —
+  # save data_static/cityguessr_city_centers.csv coords as gallery.npy and
+  # point gallery_path at it. resolution_km only matters for auto-build.
+  resolution_km: 25.0
+  gallery_chunk: 65536
+  gallery_path: runs/cityguessr_full/gallery.npy
+  padding_deg: 0.02
+
+run:
+  dir: runs/cityguessr_full
+  device: auto
+  seed: 0
+  log_every: 50
+  ckpt_every_epochs: 5

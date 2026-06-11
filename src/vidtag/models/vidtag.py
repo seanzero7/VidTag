@@ -30,6 +30,7 @@ class VidTAG(nn.Module):
         sigma: tuple[float, ...] = (2**0, 2**3, 2**8),
         tempgeo_layers: int = 2,
         tempgeo_heads: int = 8,
+        tempgeo_ff: int = 2400,
         tempgeo_dropout: float = 0.1,
         refiner_encoder_layers: int = 1,
         refiner_decoder_layers: int = 2,
@@ -51,6 +52,7 @@ class VidTAG(nn.Module):
             d_model=FUSED_DIM,
             num_layers=tempgeo_layers,
             nhead=tempgeo_heads,
+            dim_feedforward=tempgeo_ff,
             dropout=tempgeo_dropout,
             max_len=max_len,
             out_dims=(1024, 768, embed_dim),
@@ -138,6 +140,25 @@ class VidTAG(nn.Module):
         return self.georefiner(frame_emb, noisy_gps, key_padding_mask)
 
     # ----------------------------------------------------------- inference
+    @staticmethod
+    def _chunked_argmax(queries: torch.Tensor, gallery_emb: torch.Tensor,
+                        chunk: int = 65536) -> torch.Tensor:
+        """argmax_j queries @ gallery_emb.T without materializing (N, G).
+
+        A full MSLS 0.1 km grid has O(10^5-10^6) points; (B*T, G) similarity
+        matrices would be multi-GB at paper-scale eval.
+        """
+        flat = queries.reshape(-1, queries.shape[-1])
+        best_val = torch.full((flat.shape[0],), -torch.inf, device=flat.device)
+        best_idx = torch.zeros(flat.shape[0], dtype=torch.long, device=flat.device)
+        for start in range(0, gallery_emb.shape[0], chunk):
+            sims = flat @ gallery_emb[start : start + chunk].T
+            val, idx = sims.max(dim=-1)
+            better = val > best_val
+            best_val = torch.where(better, val, best_val)
+            best_idx = torch.where(better, idx + start, best_idx)
+        return best_idx.view(queries.shape[:-1])
+
     @torch.no_grad()
     def predict(
         self,
@@ -146,6 +167,7 @@ class VidTAG(nn.Module):
         gallery_emb: torch.Tensor,
         key_padding_mask: torch.Tensor | None = None,
         refine: bool = True,
+        gallery_chunk: int = 65536,
     ) -> dict[str, torch.Tensor]:
         """Full retrieval pipeline for one batch of sequences.
 
@@ -154,13 +176,12 @@ class VidTAG(nn.Module):
         Returns dict with 'initial_coords' and 'refined_coords' (B, T, 2).
         """
         _, frame_emb = self.encode_sequence(fused, key_padding_mask)
-        sims = frame_emb @ gallery_emb.T  # (B, T, G)
-        init_idx = sims.argmax(dim=-1)
+        init_idx = self._chunked_argmax(frame_emb, gallery_emb, gallery_chunk)
         initial = gallery_coords[init_idx]  # (B, T, 2)
         out = {"initial_coords": initial}
         if refine:
             pred_gps = self.encode_gps(initial)
             refined_emb = self.georefiner(frame_emb, pred_gps, key_padding_mask)
-            ref_idx = (refined_emb @ gallery_emb.T).argmax(dim=-1)
+            ref_idx = self._chunked_argmax(refined_emb, gallery_emb, gallery_chunk)
             out["refined_coords"] = gallery_coords[ref_idx]
         return out

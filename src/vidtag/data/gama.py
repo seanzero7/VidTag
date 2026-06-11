@@ -74,6 +74,17 @@ class GamaSequences(Dataset):
         if not self.video_ids:
             raise FileNotFoundError(f"no GAMa videos found for split={split} under {self.root}")
         self.info_dir = info_dir
+        # Some BDD100k rides have no GPS fixes at all — drop them up front
+        # (interpolate_gps would crash mid-epoch otherwise).
+        kept = []
+        for vid in self.video_ids:
+            p = info_dir / f"{vid}.json"
+            if p.exists() and json.loads(p.read_text()).get("locations"):
+                kept.append(vid)
+        if len(kept) < len(self.video_ids):
+            print(f"GamaSequences: dropped {len(self.video_ids) - len(kept)} videos "
+                  f"without GPS fixes ({split})", flush=True)
+        self.video_ids = kept
         if mode == "features" and self.features_dir is None:
             raise ValueError("features mode requires features_dir")
 
@@ -84,46 +95,71 @@ class GamaSequences(Dataset):
         dur_ms = info["endTime"] - info["startTime"]
         return max(int(dur_ms / 1000.0 * self.fps), 1)
 
+    def _coords_for(self, info: dict, sel: np.ndarray) -> torch.Tensor:
+        frame_times = info["startTime"] + sel / self.fps * 1000.0
+        return torch.from_numpy(interpolate_gps(info, frame_times).astype(np.float32))
+
     def __getitem__(self, idx: int):
         vid = self.video_ids[idx]
         info = json.loads((self.info_dir / f"{vid}.json").read_text())
-        n_frames = self._frame_count(info)
-        sel = sample_indices(n_frames, self.frames_per_seq, train=self.train, rng=self.rng)
-        frame_times = info["startTime"] + sel / self.fps * 1000.0
-        coords = interpolate_gps(info, frame_times).astype(np.float32)
 
-        item = {
-            "coords": torch.from_numpy(coords),
+        if self.mode == "features":
+            # Frame count comes from the feature file itself — duration-based
+            # estimates over/undershoot the real decoded count (BDD videos
+            # are often a few frames short of duration x fps).
+            feats = np.load(self.features_dir / f"{vid}.npy")
+            sel = sample_indices(len(feats), self.frames_per_seq, train=self.train, rng=self.rng)
+            return {
+                "fused": torch.from_numpy(feats[sel].astype(np.float32)),
+                "coords": self._coords_for(info, sel),
+                "video_id": idx,
+                "seq_key": vid,
+                "n_frames": len(sel),
+            }
+
+        n_est = self._frame_count(info)
+        sel = sample_indices(n_est, self.frames_per_seq, train=self.train, rng=self.rng)
+        frames, sel = self._decode_frames(vid, sel)
+        return {
+            "frames": frames,
+            "coords": self._coords_for(info, sel),  # coords match DECODED indices
             "video_id": idx,
             "seq_key": vid,
             "n_frames": len(sel),
         }
-        if self.mode == "features":
-            feats = np.load(self.features_dir / f"{vid}.npy")
-            item["fused"] = torch.from_numpy(feats[sel].astype(np.float32))
-        else:
-            item["frames"] = self._decode_frames(vid, sel, n_frames)
-        return item
 
-    def _decode_frames(self, vid: str, sel: np.ndarray, n_frames: int) -> torch.Tensor:
-        """Decode the selected frame indices from videos/<split>/<vid>.mov."""
+    def _decode_frames(self, vid: str, sel: np.ndarray) -> tuple[torch.Tensor, np.ndarray]:
+        """Decode requested frame indices; returns (frames, actual_indices).
+
+        If the container holds fewer frames than estimated, out-of-range
+        requests are clamped to the last decoded frame and the returned index
+        array reflects that, so GPS interpolation stays aligned with what was
+        actually decoded (no frame/GPS mislabel).
+        """
         import av
         from .transforms import frames_to_tensor
-        from PIL import Image
 
         path = self.root / "videos" / self.split / f"{vid}.mov"
         wanted = set(int(i) for i in sel.tolist())
-        images: dict[int, Image.Image] = {}
+        images = {}
+        last_i = -1
         with av.open(str(path)) as container:
             stream = container.streams.video[0]
             for i, frame in enumerate(container.decode(stream)):
+                last_i = i
                 if i in wanted:
                     images[i] = frame.to_image()
-                    if len(images) == len(wanted):
+                    if len(images) == len(wanted) and i >= max(wanted):
                         break
-        pil = [images[int(i)] for i in sel.tolist() if int(i) in images]
-        # Videos can be slightly shorter than endTime-startTime suggests; pad
-        # by repeating the last decoded frame so shapes stay consistent.
-        while len(pil) < len(sel):
-            pil.append(pil[-1])
-        return frames_to_tensor(pil, self.image_size)
+        if last_i < 0:
+            raise RuntimeError(f"no frames decoded from {path}")
+        if last_i not in images and any(i > last_i for i in wanted):
+            # re-decode is wasteful; grab the last frame on a quick second pass
+            with av.open(str(path)) as container:
+                for i, frame in enumerate(container.decode(container.streams.video[0])):
+                    if i == last_i:
+                        images[last_i] = frame.to_image()
+                        break
+        actual = np.minimum(sel, last_i)
+        pil = [images[int(min(i, last_i))] for i in sel.tolist()]
+        return frames_to_tensor(pil, self.image_size), actual

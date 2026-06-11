@@ -58,7 +58,7 @@ def build_dataset(cfg: Config, split: str):
             mode=cfg.data.mode,
             features_dir=cfg.get(f"data.{split}_features_dir"),
             image_size=cfg.get("data.image_size", 224),
-            max_len=cfg.get("model.max_len", 512) - 1,
+            max_len=cfg.get("model.max_len", 512),
         )
         return ds, collate_padded
     if kind == "gama":
@@ -88,6 +88,17 @@ def build_dataset(cfg: Config, split: str):
     raise ValueError(f"unknown data.kind: {kind}")
 
 
+def _worker_init(worker_id: int) -> None:
+    """Give each DataLoader worker an independent sampling RNG — workers
+    clone the dataset, so without this every worker draws identical frame
+    jitter (verified empirically)."""
+    import numpy as np
+
+    info = torch.utils.data.get_worker_info()
+    if info is not None and hasattr(info.dataset, "rng"):
+        info.dataset.rng = np.random.default_rng(torch.initial_seed() % 2**32 + worker_id)
+
+
 def build_loader(cfg: Config, ds, collate, device: torch.device, train: bool = True) -> DataLoader:
     return DataLoader(
         ds,
@@ -98,6 +109,7 @@ def build_loader(cfg: Config, ds, collate, device: torch.device, train: bool = T
         pin_memory=(device.type == "cuda"),
         drop_last=train,
         persistent_workers=cfg.get("data.num_workers", 4) > 0,
+        worker_init_fn=_worker_init,
     )
 
 
@@ -106,6 +118,7 @@ def build_model(cfg: Config, device: torch.device) -> VidTAG:
         sigma=tuple(cfg.model.sigma),
         tempgeo_layers=cfg.model.tempgeo_layers,
         tempgeo_heads=cfg.model.tempgeo_heads,
+        tempgeo_ff=cfg.get("model.tempgeo_ff", 2400),
         tempgeo_dropout=cfg.model.tempgeo_dropout,
         refiner_encoder_layers=cfg.model.refiner_encoder_layers,
         refiner_decoder_layers=cfg.model.refiner_decoder_layers,

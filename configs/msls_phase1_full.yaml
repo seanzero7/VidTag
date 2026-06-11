@@ -1,11 +1,12 @@
 # MSLS Phase I — FULL paper configuration (suppl. A). Target: Linux + Blackwell.
-# CHANGE ON LINUX: update the four /Volumes/... paths to your mount point,
-# precompute features first (scripts/precompute_features.py) or set
-# data.mode: frames to train straight from images (much slower; paper Table 14).
+# CHANGE ON LINUX: update the /data/PaperRepro/... paths to your data root,
+# precompute features first (PYTHONPATH=src python -m vidtag.train.precompute)
+# or set data.mode: frames to train from images (much slower; paper Table 14).
 model:
   sigma: [1, 8, 256]            # 2^0, 2^3, 2^8 — suppl. B.3
   tempgeo_layers: 2
   tempgeo_heads: 8
+  tempgeo_ff: 2400               # pinned by paper Table 8 param budget (GUESSES #4)
   tempgeo_dropout: 0.1
   refiner_encoder_layers: 1
   refiner_decoder_layers: 2
@@ -24,8 +25,8 @@ data:
   msls_root: /data/PaperRepro/datasets/msls/extracted
   train_index: /data/PaperRepro/datasets/msls/index/train.csv
   val_index: /data/PaperRepro/datasets/msls/index/val.csv
-  train_cities: null            # all 22 train cities
-  val_cities: null              # cph + sf
+  train_cities: null            # all 24 cities (within-city 90/10 split)
+  val_cities: null
   train_features_dir: /data/PaperRepro/datasets/msls/features/train
   val_features_dir: /data/PaperRepro/datasets/msls/features/val
   frames_per_seq: 16            # suppl. A & B.4
@@ -54,7 +55,7 @@ eval:
   batch_size: 8
   resolution_km: 0.1            # §5.5: 0.1 km gallery for MSLS
   gallery_chunk: 65536
-  gallery_path: runs/msls_full/gallery_val_cities.npy
+  gallery_path: runs/msls_full/gallery_train_grid.npy
   padding_deg: 0.02
 
 run:

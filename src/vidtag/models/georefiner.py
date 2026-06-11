@@ -97,7 +97,11 @@ class GPSNoiser:
         self.shift_range = shift_range
         self.generator = generator
 
-    def __call__(self, coords: torch.Tensor) -> torch.Tensor:
+    def __call__(
+        self, coords: torch.Tensor, n_frames: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """coords: (B, T, 2). n_frames: (B,) real lengths for padded batches —
+        keeps the collapse branch from picking a PAD slot (zeros = null island)."""
         B, T, _ = coords.shape
         g = self.generator
         dev = coords.device
@@ -116,7 +120,13 @@ class GPSNoiser:
         # 10% branch: collapse the whole sequence to one of its own points.
         collapse = torch.rand(B, device=dev, generator=g) < self.collapse_prob
         if collapse.any():
-            idx = torch.randint(0, T, (B,), device=dev, generator=g)
+            if n_frames is not None:
+                lens = n_frames.to(dev).clamp(min=1)
+                idx = (torch.rand(B, device=dev, generator=g) * lens).long().clamp(
+                    max=T - 1
+                )
+            else:
+                idx = torch.randint(0, T, (B,), device=dev, generator=g)
             collapsed = coords[torch.arange(B, device=dev), idx][:, None, :].expand(
                 B, T, 2
             )

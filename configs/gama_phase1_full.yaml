@@ -1,0 +1,69 @@
+# GAMa Phase I — FULL paper configuration (suppl. A: 100 epochs, lr 5e-5,
+# StepLR decay 0.95, batch 128, 16 frames/video). Target: Linux + Blackwell.
+# Layout under data.gama_root (src/vidtag/data/gama.py):
+#   info/100k/{train,val}/<video>.json   (unzipped bdd100k_info.zip)
+#   videos/{train,val}/<video>.mov       (BDD100k videos — manual download,
+#                                         see README "Datasets")
+#   splits/{train,val}.txt               (GAMa lists; optional — falls back
+#                                         to every video with an info JSON)
+# NOTE data.mode is "frames": the precompute fast path currently supports
+# MSLS only (GamaSequences exposes no per-frame access).
+model:
+  sigma: [1, 8, 256]            # 2^0, 2^3, 2^8 — suppl. B.3
+  tempgeo_layers: 2
+  tempgeo_heads: 8
+  tempgeo_ff: 2400              # pinned by paper Table 8 param budget (GUESSES #4)
+  tempgeo_dropout: 0.1
+  refiner_encoder_layers: 1
+  refiner_decoder_layers: 2
+  refiner_heads: 8
+  refiner_ff: 2048
+  refiner_dropout: 0.1
+  max_len: 512
+  embed_dim: 512
+  geoclip_init: true
+  geoclip_location_weights: /data/PaperRepro/weights/geoclip/location_encoder_weights.pth
+  geoclip_logit_scale_weights: /data/PaperRepro/weights/geoclip/logit_scale_weights.pth
+
+data:
+  kind: gama
+  mode: frames                  # see NOTE above
+  gama_root: /data/PaperRepro/datasets/gama
+  frames_per_seq: 16            # suppl. A
+  num_workers: 12
+
+train:
+  batch_size: 128               # suppl. A
+  epochs: 100                   # suppl. A (GAMa / CityGuessr68k)
+  lr: 5.0e-5
+  lr_decay: 0.95                # suppl. A (GAMa / CityGuessr68k decay)
+  warmup_steps: 1000
+  symmetric_ce: true
+  grad_clip: null
+
+noise:
+  collapse_prob: 0.1
+  jitter_range: [0.001, 0.02]
+  shift_range: [-0.2, 0.2]
+
+loss:
+  alpha: 10.0
+  beta: 1.0
+
+eval:
+  batch_size: 8
+  resolution_km: 0.5            # §5.5: 0.5 km gallery for GAMa
+  gallery_chunk: 65536
+  # Pre-build once from the train info JSONs (region = rideID area/city):
+  #   PYTHONPATH=src python -m vidtag.data.gallery --coords-csv <lat,lon,region csv> \
+  #       --resolution-km 0.5 --out runs/gama_full/gallery.npy
+  # Auto-build would lump all BDD regions into one bbox — intractable grid.
+  gallery_path: runs/gama_full/gallery.npy
+  padding_deg: 0.02
+
+run:
+  dir: runs/gama_full
+  device: auto
+  seed: 0
+  log_every: 50
+  ckpt_every_epochs: 5

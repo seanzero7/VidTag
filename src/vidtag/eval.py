@@ -78,9 +78,14 @@ def run_eval(cfg, ckpt: str, refine: bool = True, limit: int | None = None,
     logger = get_logger("vidtag.eval", str(run_dir / "eval.log"))
 
     model = build_model(cfg, device)
-    load_checkpoint(ckpt, model, strict=False)
+    state = load_checkpoint(ckpt, model, strict=False)
     model.eval()
     logger.info("loaded %s", ckpt)
+    if refine and state.get("extra", {}).get("phase") == "phase1":
+        logger.warning(
+            "checkpoint %s is PHASE 1 — the 'refined' stage below uses an "
+            "UNTRAINED GeoRefiner; pass --no-refine for meaningful numbers", ckpt
+        )
 
     grid = gallery_from_cfg(cfg, logger)
     gallery_coords = torch.tensor(grid, dtype=torch.float32, device=device)

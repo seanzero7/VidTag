@@ -1,0 +1,55 @@
+# CityGuessr68k Phase II (GeoRefiner) — FULL paper configuration (suppl. A).
+model:
+  sigma: [1, 8, 256]
+  tempgeo_layers: 2
+  tempgeo_heads: 8
+  tempgeo_ff: 2400              # pinned by paper Table 8 param budget (GUESSES #4)
+  tempgeo_dropout: 0.1
+  refiner_encoder_layers: 1
+  refiner_decoder_layers: 2
+  refiner_heads: 8
+  refiner_ff: 2048
+  refiner_dropout: 0.1
+  max_len: 512
+  embed_dim: 512
+  geoclip_init: false
+
+data:
+  kind: cityguessr
+  mode: frames
+  cityguessr_root: /data/PaperRepro/datasets/cityguessr68k
+  frames_per_seq: 16
+  num_workers: 12
+
+train:
+  phase1_ckpt: runs/cityguessr_full/phase1_latest.pt
+  batch_size: 128
+  epochs: 100
+  lr: 1.0e-4
+  lr_decay: 0.95
+  warmup_steps: 1000
+  symmetric_ce: true
+  grad_clip: null
+
+noise:
+  collapse_prob: 0.1
+  jitter_range: [0.001, 0.02]
+  shift_range: [-0.2, 0.2]
+
+loss:
+  alpha: 10.0
+  beta: 1.0
+
+eval:
+  batch_size: 8
+  resolution_km: 25.0
+  gallery_chunk: 65536
+  gallery_path: runs/cityguessr_full/gallery.npy
+  padding_deg: 0.02
+
+run:
+  dir: runs/cityguessr_full
+  device: auto
+  seed: 0
+  log_every: 50
+  ckpt_every_epochs: 5

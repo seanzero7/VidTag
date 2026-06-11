@@ -2,7 +2,8 @@
 model:
   sigma: [1, 8, 256]            # 2^0, 2^3, 2^8 (suppl. B.3 Table 9)
   tempgeo_layers: 2             # suppl. A
-  tempgeo_heads: 8              # GUESSES #4
+  tempgeo_heads: 8
+  tempgeo_ff: 2400               # pinned by paper Table 8 param budget (GUESSES #4)              # GUESSES #4
   tempgeo_dropout: 0.1
   refiner_encoder_layers: 1     # suppl. A
   refiner_decoder_layers: 2     # suppl. A

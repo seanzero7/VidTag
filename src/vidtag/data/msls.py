@@ -4,8 +4,9 @@ Per the paper we ignore MSLS's query/database retrieval semantics and treat
 *every* sequence (from both sides) as a video with per-frame GPS. Sequences
 are groups of frames sharing `sequence_key` in seq_info.csv, ordered by
 `frame_number`; panoramas are dropped; training keeps sequences with >= 16
-frames. Train/val split: official MSLS city partition (GUESSES.md #24) —
-train cities for training, val cities (cph, sf) for validation.
+frames. Train/val split: WITHIN each city, a deterministic 10% of sequences
+go to val (GUESSES.md #24 — the paper's train-built gallery reaching 97.9%
+@25km on val rules out a held-out-city split).
 
 Index format (one CSV per split, built once by `build_index`): per-frame rows
   city, side, sequence_key, frame_number, key, lat, lon
@@ -115,7 +116,7 @@ class MSLSequences(Dataset):
         mode: str = "frames",
         features_dir: str | None = None,
         image_size: int = 224,
-        max_len: int = 494,
+        max_len: int = 512,
         seed: int = 0,
     ):
         self.root = Path(msls_root)

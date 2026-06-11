@@ -22,13 +22,15 @@ class TempGeo(nn.Module):
         d_model: int = 1792,
         num_layers: int = 2,
         nhead: int = 8,
-        dim_feedforward: int | None = None,
+        dim_feedforward: int = 2400,
         dropout: float = 0.1,
         max_len: int = 512,
         out_dims: tuple[int, ...] = (1024, 768, 512),
     ):
+        """dim_feedforward=2400 is reverse-engineered from the paper's Table 8
+        trainable-parameter budget (56.3M total; 4x d_model would give 90.5M)
+        — see GUESSES.md #4. It is exposed end-to-end as model.tempgeo_ff."""
         super().__init__()
-        dim_feedforward = dim_feedforward or 4 * d_model
         self.pos_embedding = nn.Embedding(max_len, d_model)
         nn.init.trunc_normal_(self.pos_embedding.weight, std=0.02)
         layer = nn.TransformerEncoderLayer(

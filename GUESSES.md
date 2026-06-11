@@ -19,8 +19,13 @@ to revisit on the Blackwell box if results fall short of the paper's.
    modern encoders and the max-length is small. Sinusoidal is the fallback if
    sequences longer than the table appear.
 4. **TempGeo heads / FFN size / dropout** → 8 heads (1792 = 8×224),
-   FFN = 4×d_model = 7168, dropout 0.1. *Why:* unspecified; transformer
-   defaults ("standard pre-normalization and dropout").
+   **FFN = 2400**, dropout 0.1. *Why:* heads/dropout unspecified (transformer
+   defaults), but the FFN width is pinned by the paper's own Table 8
+   parameter budget: 56.3M trainable params for the 3-layer-MLP model (and
+   55.7M for 2-layer — delta 0.6M matches our MLP shapes exactly). FFN=2400
+   reproduces both rows to 0.1M counting TempGeo + MLP + location encoder;
+   the transformer-default 4×d=7168 would give 90.5M and is excluded.
+   Configurable as `model.tempgeo_ff`.
 5. **Final frame embedding normalization** → L2-normalize the 512-d MLP
    output. *Why:* needed for "inner products = cosine similarity" in the
    loss; GeoCLIP does the same.
@@ -78,11 +83,14 @@ to revisit on the Blackwell box if results fall short of the paper's.
 18. **Weight decay** → 0. *Why:* paper says Adam (not AdamW) with no decay
     mentioned.
 19. **Adam betas/eps** → PyTorch defaults (0.9, 0.999), 1e-8.
-20. **Frame sampling for 16-frame training sequences** → uniformly spaced
-    16 indices over the sequence (with random offset at train time,
-    deterministic center at val). *Why:* unspecified ("16 frames were
-    sampled"); uniform spacing preserves trajectory coverage; random offset
-    adds variety across epochs.
+20. **Frame sampling for 16-frame training sequences** → 16 disjoint integer
+    stride cells over the sequence; train draws one uniform index per cell,
+    eval takes cell centers — indices are unique by construction. *Why:*
+    unspecified ("16 frames were sampled"); stride cells preserve trajectory
+    coverage with per-epoch variety, and disjoint integer cells avoid
+    duplicate (frame, GPS) rows acting as false negatives in the
+    contrastive loss (naive fractional cells duplicate on 29% of MSLS train
+    sequences).
 21. **Image preprocessing** → resize 224×224 (paper), then each backbone's
     own normalization stats (CLIP mean/std for CLIP; ImageNet stats for
     DINOv2). Resize is non-aspect-preserving direct 224×224 (paper says
@@ -120,6 +128,11 @@ to revisit on the Blackwell box if results fall short of the paper's.
     timestamp. *Why:* unspecified; interpolation is standard for 1 Hz GPS +
     30 fps video.
 
+28b. **Eq. 2 typo** → the paper prints `M_f = MSE(G'G'ᵀ, I)` (refined vs
+    refined), whose diagonal is identically 1 for unit vectors (zero loss,
+    nothing to learn). We implement `G'Gᵀ` (refined vs ground truth),
+    matching §3.4's "aligned with the ground-truth embeddings g_t" and the
+    cross-form video term in the same equation.
 29. **GeoRefiner positional information** → learned positional embeddings
     added to both the encoder input (frames) and decoder queries (GPS
     tokens). *Why:* unspecified; cross-attention alignment between two

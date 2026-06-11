@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 
 
-def extract_zip(zp: Path, out: Path, cities: list[str] | None) -> int:
+def extract_zip(zp: Path, out: Path, cities: list[str] | None, force: bool = False) -> int:
     n = 0
     with zipfile.ZipFile(zp) as zf:
         for info in zf.infolist():
@@ -28,7 +28,7 @@ def extract_zip(zp: Path, out: Path, cities: list[str] | None) -> int:
             if cities and not any(c in parts for c in cities):
                 continue
             dest = out / info.filename
-            if dest.exists() and dest.stat().st_size == info.file_size:
+            if not force and dest.exists() and dest.stat().st_size == info.file_size:
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             with zf.open(info) as src, open(dest, "wb") as dst:
@@ -65,7 +65,9 @@ def main() -> int:
             print(f"!! missing {zp}, skipping", flush=True)
             continue
         print(f"== extracting {zp.name} ==", flush=True)
-        total += extract_zip(zp, out, cities)
+        # patch files REPLACE corrupt v1.0 images of identical-looking size;
+        # the resume size-check must not skip them.
+        total += extract_zip(zp, out, cities, force=zp.name.startswith("patch"))
     print(f"done, {total} files extracted")
     return 0
 

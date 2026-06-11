@@ -65,7 +65,7 @@ def run_phase2(cfg, resume: str | None = None) -> dict:
                 with torch.no_grad():
                     fused = model.encode_frames_raw(batch["frames"].to(ctx.device))
 
-            noisy = noiser(coords)
+            noisy = noiser(coords, n_frames=batch.get("n_frames"))
             refined = model.forward_phase2(fused, noisy, mask)  # (B,T,512)
             with torch.no_grad():
                 gt_emb = model.encode_gps(coords)  # (B,T,512)

@@ -46,8 +46,16 @@ data_static/     # geocoded CityGuessr city centers (committed)
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt          # torch w/ CUDA, transformers, av, ...
-pytest tests/ -q                         # 55 tests, no datasets needed
-PYTHONPATH=src python scripts/smoke_synthetic.py   # full-stack proof (needs GeoCLIP weights)
+pytest tests/ -q                         # 55+ tests, no datasets needed
+```
+
+After the GeoCLIP weights are downloaded (next section), prove the full
+stack on your device:
+
+```bash
+# point the smoke config's weight paths at your data root, then run it
+sed -i 's#/Volumes/8TBExternal/PaperRepro#/data/PaperRepro#' configs/synthetic_smoke.yaml
+PYTHONPATH=src python scripts/smoke_synthetic.py
 ```
 
 Device selection is automatic (`cuda` → `mps` → `cpu`). On CUDA you can add
@@ -56,7 +64,9 @@ MPS parity).
 
 ## Datasets
 
-One-stop script (downloads everything that has a public source):
+Prereqs: `apt install aria2 squashfs-tools unzip` (squashfs-tools ≥ 4.4 for
+the zstd archives). One-stop script (downloads everything that has a public
+source):
 
 ```bash
 bash scripts/download_datasets.sh /data/PaperRepro
@@ -75,15 +85,31 @@ bash scripts/download_datasets.sh /data/PaperRepro
 Then:
 
 ```bash
+ROOT=/data/PaperRepro   # same root you passed to download_datasets.sh
+
 # MSLS: extract, index (within-city 90/10 split — see GUESSES.md #24)
 python scripts/extract_msls.py --zips-dir $ROOT/datasets/msls --out $ROOT/datasets/msls/extracted
 PYTHONPATH=src python scripts/build_msls_index.py \
     --msls-root $ROOT/datasets/msls/extracted --out-dir $ROOT/datasets/msls/index
 
-# CityGuessr68k / GAMa archives are zstd squashfs: extract or loop-mount
+# GAMa: GPS info + split lists
+unzip $ROOT/datasets/bdd100k/bdd100k_info.zip -d $ROOT/datasets/bdd100k/info_extracted
+mkdir -p $ROOT/datasets/gama
+ln -s $ROOT/datasets/bdd100k/info_extracted $ROOT/datasets/gama/info  # loader wants gama/info/100k/{train,val}/*.json
+unsquashfs -d $ROOT/datasets/gama/extracted $ROOT/datasets/gama/GAMa_dataset-zstd.sq
+mkdir -p $ROOT/datasets/gama/splits   # copy GAMa's selected-video lists here as
+# train.txt / val.txt (they ship inside the GAMa archive with the aerial data;
+# without them the loader falls back to "all videos with info JSONs")
+
+# CityGuessr68k: meta + videos (archives are zstd squashfs; loop-mount also works)
 unsquashfs -d $ROOT/datasets/cityguessr68k/meta $ROOT/datasets/cityguessr68k/CityGuessr68k-meta_files.sq
-# (on Linux you can also: mount -o loop,ro file.sq mountpoint)
 cp data_static/cityguessr_city_centers.csv $ROOT/datasets/cityguessr68k/meta/city_centers.csv
+for f in ac dk lo pz; do
+  unsquashfs -f -d $ROOT/datasets/cityguessr68k/videos \
+      $ROOT/datasets/cityguessr68k/CityGuessr68k-$f.sq
+done
+# loader expects flat files videos/<City>_<idx>.<ext>; if the archives hold
+# per-video folders (of frames), flatten or adapt data/cityguessr.py:_find_video
 ```
 
 ## Training (paper-scale)
@@ -109,8 +135,12 @@ PYTHONPATH=src python -m vidtag.eval --config configs/msls_phase2_full.yaml \
 Every hyperparameter lives in the YAML; any value can be overridden:
 `--override train.lr=1e-4 --override train.batch_size=256`.
 
-GAMa and CityGuessr68k use the same flow with their configs (paper: 100
-epochs, LR decay 0.95 for both; everything else identical — suppl. A).
+GAMa and CityGuessr68k train with the same phase1/phase2/eval commands using
+`configs/gama_*.yaml` and `configs/cityguessr_*.yaml`, but in
+`data.mode: frames` — the precompute fast path currently supports MSLS only.
+(Paper: 100 epochs, LR decay 0.95 for both; everything else identical —
+suppl. A.) Their eval galleries should be pre-built (see comments in those
+configs); auto-building one bbox over all of BDD100k is intractable.
 
 ## Known deviations / open items
 

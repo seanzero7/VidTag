@@ -35,15 +35,17 @@ def test_warmup_step_lr_trajectory():
     base = 1e-2
     opt = torch.optim.Adam(nn.Linear(4, 4).parameters(), lr=base)
     sched = WarmupStepLR(opt, warmup_steps=10, gamma=0.5)
-    assert sched.current_lrs == [0.0]  # warmup starts from 0
+    # the FIRST optimizer step must not run at LR=0: it gets base/W
+    assert sched.current_lrs == [pytest.approx(base / 10)]
 
     lrs = []
-    for _ in range(10):
+    for _ in range(9):
         sched.step_batch()
         lrs.append(sched.current_lrs[0])
-    assert lrs[0] == pytest.approx(base / 10)
+    assert lrs[0] == pytest.approx(2 * base / 10)
     assert all(b > a for a, b in zip(lrs, lrs[1:]))  # linear ramp
     assert lrs[-1] == pytest.approx(base)  # base lr reached at end of warmup
+    sched.step_batch()  # extra steps past warmup stay at base
 
     sched.step_epoch()
     assert sched.current_lrs[0] == pytest.approx(base * 0.5)

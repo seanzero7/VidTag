@@ -27,7 +27,8 @@ done
 
 echo "== CLIP ViT-L/14 + DINOv2-L (HF cache; needs huggingface_hub) =="
 python -c "from huggingface_hub import snapshot_download as d; \
-d('openai/clip-vit-large-patch14'); d('facebook/dinov2-large')"
+kw = dict(allow_patterns=['*.safetensors','*.json','*.txt']); \
+d('openai/clip-vit-large-patch14', **kw); d('facebook/dinov2-large', **kw)"
 
 echo "== GAMa aerial images + video lists (88GB, UCF) =="
 aria2c -c -x8 -s8 --check-certificate=false --file-allocation=none \
@@ -51,6 +52,6 @@ The only fast source requires a free account:
   1. Register at https://bdd-data.berkeley.edu
   2. Download "Video Parts" / bdd100k_videos.zip
   3. Unzip into <root>/datasets/gama/videos/{train,val}/  (.mov files)
-Everything else in the GAMa pipeline (GPS info, splits, aerial) is automated.
+GPS info and the GAMa archive are downloaded by this script but still need extraction — see README "Datasets".
 EOF
 echo "done."

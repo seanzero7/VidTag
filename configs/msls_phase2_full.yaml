@@ -4,6 +4,7 @@ model:
   sigma: [1, 8, 256]
   tempgeo_layers: 2
   tempgeo_heads: 8
+  tempgeo_ff: 2400               # pinned by paper Table 8 param budget (GUESSES #4)
   tempgeo_dropout: 0.1
   refiner_encoder_layers: 1
   refiner_decoder_layers: 2
@@ -51,7 +52,7 @@ eval:
   batch_size: 8
   resolution_km: 0.1
   gallery_chunk: 65536
-  gallery_path: runs/msls_full/gallery_val_cities.npy
+  gallery_path: runs/msls_full/gallery_train_grid.npy
   padding_deg: 0.02
 
 run:
