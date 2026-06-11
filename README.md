@@ -13,13 +13,13 @@ release code; this implementation is built from the paper + supplementary.
 
 | Check | Result |
 |---|---|
-| Synthetic end-to-end smoke (`scripts/smoke_synthetic.py`) | PASS (5/5 stages) |
+| Synthetic end-to-end smoke (`scripts/smoke_synthetic.py`) | PASS (6/6 stages) |
 | Unit tests (`pytest tests/`) | 55 passed |
-| MSLS Phase I (3-city subset, 30 epochs, cached features) | loss 6.07 → 3.09 |
-| MSLS Phase II (GeoRefiner, 15 epochs) | loss 1.97 → 1.27 |
-| Full eval on real MSLS val (gallery 59k pts @0.1km) | median 1.43 km, 35.6% @1km, 98.7% @25km |
-| GAMa pipeline (real BDD GPS JSONs + video decode) | PASS |
-| CityGuessr68k pipeline (real meta + city centers) | PASS |
+| MSLS Phase I (3-city subset, 30 epochs, cached features) | loss 6.07 → 3.14 |
+| MSLS Phase II (GeoRefiner, 15 epochs) | loss ~1.9 → 1.24 |
+| Full eval on real MSLS val (gallery 59k pts @0.1km, two-stage) | initial median 2.2 km, 29.9% @1km, 99.2% @25km |
+| GAMa pipeline (real release lists: 45,029/3,103 videos; real BDD GPS; video decode) | PASS |
+| CityGuessr68k pipeline (real meta, 166 geocoded city centers) | PASS |
 
 (For scale: the paper's full-training MSLS numbers are 41.0% @1km, median
 1.35 km — reached with 22 cities × 600 epochs on an RTX A6000.)
@@ -92,14 +92,16 @@ python scripts/extract_msls.py --zips-dir $ROOT/datasets/msls --out $ROOT/datase
 PYTHONPATH=src python scripts/build_msls_index.py \
     --msls-root $ROOT/datasets/msls/extracted --out-dir $ROOT/datasets/msls/index
 
-# GAMa: GPS info + split lists
+# GAMa: GPS info + split lists (verified against the real release)
 unzip $ROOT/datasets/bdd100k/bdd100k_info.zip -d $ROOT/datasets/bdd100k/info_extracted
-mkdir -p $ROOT/datasets/gama
+mkdir -p $ROOT/datasets/gama/splits
 ln -s $ROOT/datasets/bdd100k/info_extracted $ROOT/datasets/gama/info  # loader wants gama/info/100k/{train,val}/*.json
-unsquashfs -d $ROOT/datasets/gama/extracted $ROOT/datasets/gama/GAMa_dataset-zstd.sq
-mkdir -p $ROOT/datasets/gama/splits   # copy GAMa's selected-video lists here as
-# train.txt / val.txt (they ship inside the GAMa archive with the aerial data;
-# without them the loader falls back to "all videos with info JSONs")
+# the split lists (and aerial images) live inside the GAMa archive:
+unsquashfs -d $ROOT/datasets/gama/gama_meta $ROOT/datasets/gama/GAMa_dataset-zstd.sq "list" "Readme.txt"
+cp $ROOT/datasets/gama/gama_meta/list/train.list      $ROOT/datasets/gama/splits/train.txt  # 45,029 videos
+cp $ROOT/datasets/gama/gama_meta/list/val_day_vid.list $ROOT/datasets/gama/splits/val.txt   # 3,103 videos
+# (extract the full archive too if you need the aerial images; the VidTAG
+# pipeline itself only needs the lists + BDD videos + GPS info)
 
 # CityGuessr68k: meta + videos (archives are zstd squashfs; loop-mount also works)
 unsquashfs -d $ROOT/datasets/cityguessr68k/meta $ROOT/datasets/cityguessr68k/CityGuessr68k-meta_files.sq

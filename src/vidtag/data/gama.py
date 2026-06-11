@@ -67,7 +67,9 @@ class GamaSequences(Dataset):
         info_dir = self.root / "info" / "100k" / split
         split_file = self.root / "splits" / f"{split}.txt"
         if split_file.exists():
-            wanted = [l.strip() for l in split_file.read_text().splitlines() if l.strip()]
+            # GAMa release list format: "<video_id> [<n_frames>]" per line
+            # (train.list has counts, val_day_vid.list is bare ids).
+            wanted = [l.split()[0] for l in split_file.read_text().splitlines() if l.strip()]
             self.video_ids = [w.removesuffix(".mov").removesuffix(".json") for w in wanted]
         else:  # documented fallback: every video that has an info JSON
             self.video_ids = sorted(p.stem for p in info_dir.glob("*.json"))
