@@ -267,6 +267,73 @@ with torch.no_grad():
 print(out["refined_coords"][0])   # (T, 2) lat/lon trajectory
 ```
 
+## The recipe: reproducing the paper's accuracy
+
+Everything below assumes data is prepared per Step 1 and lives at
+`/data/PaperRepro`. Change the paths at the top of each `configs/*_full.yaml`
+(or pass `--override`), then run the commands — nothing else to edit. Times
+are projections for a Blackwell-class GPU from the paper's A6000 figures
+(suppl. I) and our measured throughputs; treat as ballpark.
+
+| Step | Command (after `export PYTHONPATH=src`) | Est. time | Target (paper) |
+|---|---|---|---|
+| MSLS precompute (×2 splits) | `python -m vidtag.train.precompute --config configs/msls_phase1_full.yaml --split {train,val} --out /data/PaperRepro/datasets/msls/features/{train,val}` | 1–3 h | — |
+| **MSLS Phase I** — 600 epochs, bs 128, lr 5e-5, decay 0.99 | `python -m vidtag.train.phase1 --config configs/msls_phase1_full.yaml` | 1–3 h | loss plateaus ~2 |
+| **MSLS Phase II** — 100 epochs, lr 1e-4, decay 0.95 | `python -m vidtag.train.phase2 --config configs/msls_phase2_full.yaml` | <1 h | refined > initial |
+| **MSLS eval** — 0.1 km grid (~2M pts) | `python -m vidtag.eval --config configs/msls_phase2_full.yaml --ckpt runs/msls_full/phase2_latest.pt` | ~0.5 h | **21.5 / 41.0 / 76.7 / 97.9 @ 0.5/1/5/25 km, median 1.35, DFD 3.87, MRD 1.07** |
+| GAMa Phase I+II — 100+100 epochs, decay 0.95 (needs BDD videos; frames mode) | same commands with `configs/gama_phase{1,2}_full.yaml` | 1–2 days (video decode dominates) | **35.4 / 53.1 / 77.8 / 94.4, median 0.88** (0.5 km gallery) |
+| CityGuessr precompute + Phase I+II — 100+100 epochs, decay 0.95 | `precompute --config configs/cityguessr_phase1_full.yaml ...` then phase1/phase2 | 4–8 h precompute, then ~2 h | — |
+| CityGuessr city-level eval | `python -m vidtag.eval --config configs/cityguessr_phase2_full.yaml --ckpt ... --override eval.gallery_source=city_centers` | minutes | **94.9 / 95.5 / 96.8 / 98.5 City/State/Country/Continent** |
+| *(optional)* Unified model — all 3 datasets, 200 epochs, decay 0.97 (suppl. H) | `python -m vidtag.train.phase1 --config configs/unified_phase1_full.yaml`, then per-dataset eval against its checkpoint | ~1 day | Table 12/13 (e.g. MSLS 35.4 @1km) |
+
+Notes that matter for hitting the numbers:
+
+- **Order:** MSLS first — it's the paper's primary benchmark, the fastest to
+  train (precomputed features), and validates your setup before the
+  video-heavy datasets.
+- **Don't skip GeoCLIP init** (`model.geoclip_init: true` in the Phase-I
+  configs) — verified to be the difference between working retrieval and
+  random-globe predictions.
+- Phase II always loads `train.phase1_ckpt` — train phases in order.
+- Eval galleries: MSLS auto-builds (cached to `eval.gallery_path`);
+  GAMa/CityGuessr should be pre-built per the comments in their configs.
+- If results fall short, work through [GUESSES.md](GUESSES.md) top-down —
+  GeoRefiner width 1792 (#9) and one-directional CE (#8) are the first two
+  ablations to try.
+- Suppl. D.2 sanity mode (`--override eval.gallery_source=val_coords`)
+  should score notably higher than the blind grid (paper Table 11); if it
+  doesn't, the model — not the gallery — is the problem.
+
+## Docker
+
+The repo ships a CUDA [Dockerfile](Dockerfile) (Blackwell-ready:
+torch 2.7 + cu128 carries sm_120 kernels):
+
+```bash
+docker build -t vidtag .
+
+# data prep (downloads resume across runs)
+docker run --rm -v /data/PaperRepro:/data/PaperRepro vidtag \
+    bash scripts/download_datasets.sh /data/PaperRepro
+
+# full MSLS pipeline
+docker run --gpus all --ipc=host --shm-size=16g \
+    -v /data/PaperRepro:/data/PaperRepro \
+    -v $PWD/runs:/workspace/runs \
+    vidtag bash scripts/train_msls_full.sh /data/PaperRepro
+```
+
+Container notes:
+- `--ipc=host --shm-size=16g` is required — DataLoader workers use shared
+  memory (the default 64MB shm will crash `num_workers: 12`).
+- `HF_HOME` is set to `/data/PaperRepro/hf_cache` inside the image so model
+  weights persist on the mounted volume. Keep that volume on a **Linux
+  filesystem (ext4/xfs)**; HF's file locks misbehave on network/odd mounts.
+  Mounting the NTFS data drive via the kernel `ntfs3` driver is fine.
+- Mount `runs/` (checkpoints/logs) to the host or they die with the container.
+- Config paths (`/data/PaperRepro/...`) match the mount point above — change
+  both together if you relocate.
+
 ## Known deviations / open items
 
 - The within-city 90/10 split fraction is our choice (GUESSES #24); the

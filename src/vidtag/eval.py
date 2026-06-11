@@ -26,6 +26,23 @@ from .utils import get_logger, load_checkpoint, resolve_device, set_seed
 
 
 def gallery_from_cfg(cfg, logger) -> np.ndarray:
+    """Build/load the retrieval gallery. cfg.eval.gallery_source:
+      train_grid   (default) — uniform grid over train coords (suppl. D.1)
+      val_coords   — GT coordinates of the val split (suppl. D.2, Table 11)
+      city_centers — the CityGuessr 166 city centers (§5.3 city-level task)
+    """
+    source = cfg.get("eval.gallery_source", "train_grid")
+    if source == "city_centers":
+        centers = pd.read_csv(Path(cfg.data.cityguessr_root) / "meta" / "city_centers.csv")
+        logger.info("gallery = %d city centers (city-level protocol)", len(centers))
+        return centers[["lat", "lon"]].to_numpy()
+    if source == "val_coords":
+        ds, _ = build_dataset(cfg, "val")
+        coords = np.concatenate([ds[i]["coords"].numpy() for i in range(len(ds))])
+        grid = np.unique(np.round(coords, 6), axis=0)
+        logger.info("gallery = %d unique val GT coords (suppl. D.2 mode)", len(grid))
+        return grid
+
     gpath = Path(cfg.eval.gallery_path)
     if gpath.exists():
         grid = load_gallery(str(gpath))
@@ -95,7 +112,7 @@ def run_eval(cfg, ckpt: str, refine: bool = True, limit: int | None = None,
     loader = build_loader(cfg, ds, collate, device, train=False)
     logger.info("%s sequences: %d", split, len(ds))
 
-    initial_preds, refined_preds, gts = [], [], []
+    initial_preds, refined_preds, gts, seq_keys = [], [], [], []
     seen = 0
     for batch in loader:
         coords = batch["coords"].to(device)
@@ -110,6 +127,7 @@ def run_eval(cfg, ckpt: str, refine: bool = True, limit: int | None = None,
         for b in range(coords.shape[0]):
             n = int(n_frames[b])
             gts.append(coords[b, :n].cpu().numpy())
+            seq_keys.append(batch["seq_key"][b])
             initial_preds.append(out["initial_coords"][b, :n].cpu().numpy())
             if refine:
                 refined_preds.append(out["refined_coords"][b, :n].cpu().numpy())
@@ -120,6 +138,33 @@ def run_eval(cfg, ckpt: str, refine: bool = True, limit: int | None = None,
     results = {"initial": evaluate_sequences(initial_preds, gts)}
     if refine:
         results["refined"] = evaluate_sequences(refined_preds, gts)
+
+    if cfg.data.kind == "cityguessr":
+        # City-level protocol (paper §5.3, Table 3): per-frame nearest city
+        # center, per-video majority vote, hierarchy accuracy (GUESSES #31).
+        from .data.cityguessr import _video_city
+        from .metrics import haversine_km, hierarchy_accuracy
+
+        meta = Path(cfg.data.cityguessr_root) / "meta"
+        centers = pd.read_csv(meta / "city_centers.csv")
+        labels = pd.read_csv(meta / "labels_list.csv")
+        center_xy = centers[["lat", "lon"]].to_numpy()
+
+        def to_cities(per_video_preds):
+            out = []
+            for arr in per_video_preds:
+                d = haversine_km(arr[:, None, :], center_xy[None, :, :])
+                votes = centers.city.to_numpy()[d.argmin(axis=1)]
+                vals, counts = np.unique(votes, return_counts=True)
+                out.append(vals[counts.argmax()])
+            return out
+
+        gt_cities = [_video_city(k) for k in seq_keys]
+        stages = [("initial", initial_preds)]
+        if refine:
+            stages.append(("refined", refined_preds))
+        for stage, preds in stages:
+            results[stage].update(hierarchy_accuracy(to_cities(preds), gt_cities, labels))
 
     cols = list(results["initial"].keys())
     logger.info("%-9s " + " ".join(f"{c:>14}" for c in cols), "stage")

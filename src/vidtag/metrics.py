@@ -18,6 +18,26 @@ KM_PER_DEG_LON_EQUATOR = 111.320
 DEFAULT_THRESHOLDS_KM = (0.5, 1.0, 5.0, 25.0)
 
 
+def hierarchy_accuracy(
+    pred_cities: Sequence[str],
+    gt_cities: Sequence[str],
+    labels,
+) -> dict[str, float]:
+    """CityGuessr68k city-level protocol (paper §5.3, Table 3): % of videos
+    whose predicted city matches the GT at each hierarchy level
+    (City/State/Country/Continent), via the labels_list.csv mapping
+    (a pandas DataFrame with those four columns)."""
+    lookup = {r.City: (r.City, r.State, r.Country, r.Continent) for r in labels.itertuples()}
+    levels = ("city", "state", "country", "continent")
+    hits = dict.fromkeys(levels, 0)
+    for p, g in zip(pred_cities, gt_cities):
+        ph, gh = lookup[p], lookup[g]
+        for i, lvl in enumerate(levels):
+            hits[lvl] += int(ph[i] == gh[i])
+    n = max(len(gt_cities), 1)
+    return {f"{lvl}_acc": 100.0 * hits[lvl] / n for lvl in levels}
+
+
 def haversine_km(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """Great-circle distance in km between (lat, lon) degree pairs.
 

@@ -140,6 +140,18 @@ to revisit on the Blackwell box if results fall short of the paper's.
 30. **MRD/DFD units** → kilometers (lat/lon ranges converted via local
     metric scale; DFD over haversine distances). *Why:* unspecified, but the
     paper's MRD≈1.07 / DFD≈3.87 magnitudes only make sense in km.
+31. **CityGuessr city-level protocol details** → gallery = the 166 city
+    centers; per-frame nearest center, per-video majority vote → predicted
+    city → hierarchy accuracy via labels_list.csv. *Why:* §5.3 says the task
+    is adapted "by assigning the city center GPS coordinates" but doesn't
+    state the gallery or the frame→video aggregation; nearest-center +
+    majority vote is the natural retrieval reading.
+32. **Unified-mix city matching (suppl. H rule 2a)** → MSLS city slugs are
+    matched to CityGuessr names case-insensitively with explicit mappings
+    for sf→San_Francisco, cph→Copenhagen, saopaulo→Sao_Paulo. *Why:* the
+    paper says "remove training data from cities which are also present in
+    MSLS" without naming the matching procedure. GAMa subset size = MSLS
+    sequence count ("corpus size is roughly equivalent").
 
 ## Scope notes for the Mac (MPS) phase
 
