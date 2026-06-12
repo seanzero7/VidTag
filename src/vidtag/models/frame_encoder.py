@@ -9,6 +9,21 @@ cached (suppl. I) — see vidtag.train.precompute.
 
 from __future__ import annotations
 
+import os
+
+# Offline-first model loading. This project ships the CLIP/DINOv2 caches with
+# the data tree, so by default we never contact huggingface.co (corporate
+# TLS-intercepting proxies, e.g. Zscaler, break that handshake anyway).
+#   - If HF_HOME is unset and the standard data-tree cache exists, use it.
+#   - HF_HUB_OFFLINE defaults to 1; export HF_HUB_OFFLINE=0 to allow
+#     downloading on a machine without the prepared cache.
+# Must run before the `transformers` import.
+_DEFAULT_HF_CACHE = "/data/PaperRepro/hf_cache"
+if "HF_HOME" not in os.environ and os.path.isdir(_DEFAULT_HF_CACHE):
+    os.environ["HF_HOME"] = _DEFAULT_HF_CACHE
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -31,8 +46,17 @@ class DualFrameEncoder(nn.Module):
         dino_name: str = "facebook/dinov2-large",
     ):
         super().__init__()
-        self.clip = CLIPVisionModelWithProjection.from_pretrained(clip_name)
-        self.dino = Dinov2Model.from_pretrained(dino_name)
+        try:
+            self.clip = CLIPVisionModelWithProjection.from_pretrained(clip_name)
+            self.dino = Dinov2Model.from_pretrained(dino_name)
+        except OSError as e:  # cache miss while offline -> actionable message
+            raise OSError(
+                f"Could not load {clip_name} / {dino_name} from the local HF "
+                f"cache (HF_HOME={os.environ.get('HF_HOME', '<default>')}). "
+                "Either point HF_HOME at the prepared cache "
+                "(e.g. /data/PaperRepro/hf_cache) or, on a network without a "
+                "TLS-intercepting proxy, allow downloads with HF_HUB_OFFLINE=0."
+            ) from e
         for p in self.parameters():
             p.requires_grad_(False)
         self.eval()

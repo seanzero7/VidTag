@@ -20,6 +20,12 @@ ls $DATA/datasets/msls/index/train.csv          # must exist before proceeding
 sed -i "s#/data/PaperRepro#$DATA#g; s#/Volumes/8TBExternal/PaperRepro#$DATA#g" configs/*.yaml
 ```
 
+**Proxy/Zscaler networks:** model loading is offline-by-default — the code
+never contacts huggingface.co. It auto-uses `/data/PaperRepro/hf_cache` when
+`HF_HOME` is unset; if your data lands elsewhere, `export HF_HOME=$DATA/hf_cache`.
+(On an unproxied machine *without* the prepared cache, allow downloads with
+`export HF_HUB_OFFLINE=0`.)
+
 Notes for the flat layout:
 - Ignore/drop any `PYTHONPATH=src` seen in older docs/scripts — with
   `vidtag/` at the repo root, running from `/app` resolves the package via
